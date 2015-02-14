@@ -1,0 +1,233 @@
+<html>
+	<head>
+		<title></title>
+		<style type="text/css">
+body {
+	overflow: hidden;
+}
+
+#bg {
+	width: 100%;
+	height: 100%;
+	background-image: url(bg_tile.jpg);
+	display: block;
+	position: absolute;
+	left: 0;
+	top: 0;
+}
+
+img {
+	padding: 12px;
+	position: absolute;
+	background-color: hsl(0, 0%, 95%);
+	border: 1px solid rgba(0, 0, 0, 0.2);
+	border-radius: 1px;
+	background-clip: padding-box;
+	display: block;
+  opacity: 0;
+	min-width: 300px;
+	min-height: 300px;
+	-webkit-transition-property: opacity, left, top, -webkit-transform;
+	-webkit-transition-timing-function: ease-in-out, ease-out, ease-out, ease-out;
+	-o-transition-property: opacity, left, top, -o-transform;
+	-o-transition-timing-function: ease-in-out, ease-out, ease-out, ease-out;
+}
+
+#message {
+	color: white;
+	text-shadow: 1px 1px black;
+	left: 0;
+	bottom: 0;
+	position: fixed;
+	z-index: 1;
+	font-family: "Verdana";
+}
+		</style>
+		<script type="text/javascript" src="jquery-1.7.1.min.js"></script>
+		<script type="text/javascript">
+// could easily be a CGI script to read all file names from the pictures directory
+PATHS = ["1.jpg", "2.jpg", "3.jpg", "4.jpg", "5.jpg", "8.jpg", "13.jpg", "30.jpg", "CCF03202012_00006.jpg", "CCF03212012_00000.jpg", "CCF03212012_00005.jpg"];
+
+// Preload all images to avoid frame rate stutter during animations
+// Need better solution if pulling from Google Drive, Dropbox someday
+$(document).ready(function() {
+  $.each(PATHS, function(index, value) {
+    // filter out unvetted file types
+    if (value.match(/\.(jpg|jpeg|gif|png|tif|tiff|bmp)$/i)) {
+      $("body").append($("<img/>").addClass("hidden").attr("src", "pictures/" + value));
+    }
+  });
+});
+
+// bring clicked images to front of "pile"
+$(document).on("click", "img", function() {
+  var t = $(this).remove();
+  $("body").append(t);
+});
+
+var duration = 2000;
+var delay = 5000;
+var maximages = 3;
+var paused = false;
+
+function throwImage() {
+  try {
+    // Choose any picture not already on the "pile"
+    var hidden = $("img.hidden")
+    var r = Math.floor(Math.random() * hidden.length)
+    var image = $(hidden.slice(r, r+1));
+    
+    // Resize image to match current window geometry, if someone is messing with window bounds for some reason
+    //image.css("min-width", ($(window).width() * 0.6) + "px");
+    image.css("min-height", ($(window).height() * 0.6) + "px");
+    image.css("max-width", ($(window).width() * 0.9) + "px");
+    image.css("max-height", ($(window).height() * 0.9) + "px");
+
+    // Calculate picture dimensions and initial orientation of the "throwing" trajectory
+    var iw = image.outerWidth(), ih = image.outerHeight();
+    var irad = Math.sqrt(Math.pow(iw, 2) + Math.pow(ih, 2)); // picture radius
+    var drad = Math.sqrt(Math.pow($(window).width(), 2) + Math.pow($(window).height(), 2)); // window radius
+    var throwR = irad + drad; // min radius to ensure no corner or hint of the picture will be visible to start
+    var throwT = Math.random() * 360; // random angle to throw from
+    var startX = throwR * Math.cos(throwT) + $(window).width() / 2;
+    var startY = throwR * Math.sin(throwT) + $(window).height() / 2;
+    var startA = Math.random() * 720 - 360; // get at least one spin on the way in
+    
+    // Move the (invisible) picture immediately offscreen
+    setDuration(image, 0);
+    moveImage(image, startX, startY, startA);
+    
+    // Move picture to front of the "pile" a.k.a. end of the DOM
+    image.remove();
+    $("body").append(image);
+    image.css("opacity", "1");
+    image.removeClass("hidden");
+    
+    // Calculate final orientation of the shown picture
+    // Could refine landing "bounds" to avoid picture corners being left off-screen
+    // Haven't found the right formula
+    // Nobody in audience ever notices
+    // WARNING: do not combine this section with starting geometry, prevents throwing animation, possible JS runtime optimization?
+    var endX = Math.random() * ($(window).width() - iw);
+    var endY = Math.random() * ($(window).height() - ih);
+    var endA = Math.random() * 20 - 10; // pictures should land somewhat "upright"
+    
+    // Reset animation duration, then apply ending geometry and let CSS sort it out
+    setDuration(image, duration);
+    moveImage(image, endX, endY, endA);
+  } catch (e) {
+    console.trace();
+    console.error(e);
+  }
+}
+
+function moveImage(image, x, y, a) {
+  console.log("moving image", image.attr("src"), "to x:", x, ", y:", y, ", a:", a)
+  image.css({
+    "left": x + "px",
+    "top": y + "px",
+    "-webkit-transform": "rotate(" + a + "deg)",
+    "-o-transform": "rotate(" + a + "deg)"
+  });
+}
+
+function setDuration(image, duration) {
+  image.css({
+    "-webkit-transition-duration": duration + "ms",
+    "-o-transition-duration": duration + "ms",
+    "transition-duration": duration + "ms"
+  });
+}
+
+function keepThrowing() {
+  if (!paused) {
+    throwImage();
+    var images = $("img");
+    for (var i = 0; i < images.length - maximages; i++) {
+      var image = $(images[i]);
+      setDuration(image, duration);
+      image.css("opacity", "0");
+      image.addClass("hidden");
+    };
+  }
+  setTimeout("keepThrowing()", duration + delay);
+}
+
+var msgfade;
+
+function message(msg) {
+  clearTimeout(msgfade);
+  messageIn();
+  console.log(msg);
+  $("#message").text(msg);
+  msgfade = setTimeout("messageOut()", 1000);
+}
+
+function messageIn() {
+  $("#message").show();
+}
+
+function messageOut() {
+    $("#message").fadeOut("slow");
+}
+
+$(document).keyup(function(event) {
+  var c = String.fromCharCode(event.keyCode);
+  if (c == "P" && paused) {
+    paused = false;
+    message("Unpaused.");
+  } else if (c == "P") {
+    paused = true;
+    message("Paused.");
+  } else if (c == " ") {
+    throwImage();
+    message("Threw another image.");
+  } else if (c == "Q") {
+    duration -= 200;
+    message("Animation set to " + Math.round(duration / 100) / 10 + " seconds.");
+  } else if (c == "W") {
+    duration += 200;
+    message("Animation set to " + Math.round(duration / 100) / 10 + " seconds.");
+  } else if (c == "A") {
+    delay -= 200;
+    message("Delay set to " + Math.round(delay / 100) / 10 + " seconds.");
+  } else if (c == "S") {
+    delay += 200;
+    message("Delay set to " + Math.round(delay / 100) / 10 + " seconds.");
+  } else if (c == "Z") {
+    maximages--;
+    message("Max images set to " + maximages);
+  } else if (c == "X") {
+    maximages++;
+    message("Max images set to " + maximages);
+  } else if (c == "F") {
+    toggleFullScreen();
+  } else if (c == "R") {
+    $("img").hide();
+  }
+});
+  
+function toggleFullScreen() {  
+  if ((document.fullScreenElement && document.fullScreenElement !== null) ||    // alternative standard method  
+      (!document.mozFullScreen && !document.webkitIsFullScreen)) {               // current working methods  
+    if (document.documentElement.requestFullScreen) {  
+      document.documentElement.requestFullScreen();  
+    } else if (document.documentElement.mozRequestFullScreen) {  
+      document.documentElement.mozRequestFullScreen();  
+    } else if (document.documentElement.webkitRequestFullScreen) {  
+      document.documentElement.webkitRequestFullScreen(Element.ALLOW_KEYBOARD_INPUT);  
+    }  
+  } else {  
+    if (document.cancelFullScreen) {  
+      document.cancelFullScreen();  
+    } else if (document.mozCancelFullScreen) {  
+      document.mozCancelFullScreen();  
+    } else if (document.webkitCancelFullScreen) {  
+      document.webkitCancelFullScreen();  
+    }  
+  }  
+}
+		</script>
+	</head>
+	<body onload="keepThrowing()"><div id="bg"></div><span id="message"></span></body>
+</html>
